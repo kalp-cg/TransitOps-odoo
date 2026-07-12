@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Truck, Users, Navigation, Wrench, TrendingUp, AlertTriangle, CheckCircle, RefreshCw, Lightbulb, ClipboardList, Fuel, DollarSign, Shield, BarChart3, Target, Activity, Clock, ChevronRight } from 'lucide-react';
+import { Truck, Users, Navigation, Wrench, TrendingUp, AlertTriangle, CheckCircle, RefreshCw, Lightbulb, ClipboardList, Fuel, DollarSign, Shield, BarChart3, Target, Activity, Clock, ChevronRight, FileText, XCircle } from 'lucide-react';
 import { api } from '../api';
 import DonutChart from '../components/DonutChart';
 import MiniSparkline from '../components/MiniSparkline';
@@ -104,6 +104,111 @@ const EmptyState = ({ message }) => (
     padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px'
   }}>{message}</div>
 );
+
+// ─── Document Compliance Alert Panel ───────────────────────────────────────────
+const DocAlertsPanel = () => {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getVehicleDocumentAlerts()
+      .then(data => { setAlerts(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const daysUntil = (d) => Math.ceil((new Date(d) - today) / 86400000);
+
+  const expiredAlerts  = alerts.filter(a => a.status === 'EXPIRED');
+  const expiringAlerts = alerts.filter(a => a.status === 'EXPIRING_SOON');
+
+  if (loading) return null;
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="card" style={{ marginTop: '16px' }}>
+      <SectionHeader
+        icon={FileText}
+        title="Document Compliance Alerts"
+        count={alerts.length}
+        color="var(--error-text)"
+      />
+      {expiredAlerts.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{
+            fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px',
+            color: 'var(--error-text)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px'
+          }}>
+            <XCircle size={12} /> Expired ({expiredAlerts.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {expiredAlerts.slice(0,5).map((a, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', backgroundColor: 'rgba(155,44,44,0.07)',
+                border: '1px solid rgba(252,129,129,0.25)', borderLeft: '3px solid #FC8181', borderRadius: '2px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FileText size={12} style={{ color: '#FC8181', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600' }}>{a.document_type}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {a.registration_number} · #{a.document_number}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#FC8181' }}>EXPIRED</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    {Math.abs(daysUntil(a.expiry_date))}d ago
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {expiringAlerts.length > 0 && (
+        <div>
+          <div style={{
+            fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px',
+            color: '#ECC94B', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px'
+          }}>
+            <AlertTriangle size={12} /> Expiring Soon ({expiringAlerts.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {expiringAlerts.slice(0,5).map((a, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', backgroundColor: 'rgba(183,121,31,0.07)',
+                border: '1px solid rgba(236,201,75,0.25)', borderLeft: '3px solid #ECC94B', borderRadius: '2px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FileText size={12} style={{ color: '#ECC94B', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600' }}>{a.document_type}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {a.registration_number} · #{a.document_number}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#ECC94B' }}>
+                    {daysUntil(a.expiry_date)}d left
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    Expires {new Date(a.expiry_date).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 // ═══════════════════════════════════════════════════
 // ROLE-SPECIFIC SECTIONS
@@ -219,6 +324,9 @@ const FleetManagerSection = ({ data, kpis }) => {
           ) : <EmptyState message="Fleet healthy — no open work orders" />}
         </div>
       </div>
+
+      {/* Vehicle Document Compliance Alerts */}
+      <DocAlertsPanel />
     </div>
   );
 };

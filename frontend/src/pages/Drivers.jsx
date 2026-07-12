@@ -169,6 +169,11 @@ const Drivers = ({ userRole }) => {
   const avgSafety = drivers.length > 0
     ? Math.round(drivers.reduce((s, d) => s + (d.safety_score || 0), 0) / drivers.length)
     : 0;
+
+  const expiredCount = drivers.filter(d => d.license_validity === 'EXPIRED').length;
+  const expiringCount = drivers.filter(d => d.license_validity === 'EXPIRING_SOON').length;
+  const suspendedCount = drivers.filter(d => d.status === 'SUSPENDED').length;
+
   const { exportCsv, exportPdf } = useExport({
     title: 'Driver Roster & Compliance Report',
     columns: DRIVER_COLUMNS,
@@ -239,10 +244,6 @@ const Drivers = ({ userRole }) => {
       alert(e.message);
     }
   };
-
-  const expiredCount = drivers.filter(d => d.license_validity === 'EXPIRED').length;
-  const expiringCount = drivers.filter(d => d.license_validity === 'EXPIRING_SOON').length;
-  const suspendedCount = drivers.filter(d => d.status === 'SUSPENDED').length;
 
   return (
     <div>

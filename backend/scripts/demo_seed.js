@@ -17,6 +17,7 @@ const run = async () => {
     // ──────────────────────────────────────────────
     console.log('🗑  Dropping existing tables...');
     await client.query('BEGIN');
+    await client.query('DROP TABLE IF EXISTS vehicle_documents CASCADE');
     await client.query('DROP TABLE IF EXISTS expenses CASCADE');
     await client.query('DROP TABLE IF EXISTS fuel_logs CASCADE');
     await client.query('DROP TABLE IF EXISTS maintenance_logs CASCADE');
@@ -142,6 +143,19 @@ const run = async () => {
         expense_date DATE NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      CREATE TABLE vehicle_documents (
+        id SERIAL PRIMARY KEY,
+        vehicle_id INT REFERENCES vehicles(id) ON DELETE CASCADE,
+        document_type VARCHAR(100) NOT NULL,
+        document_number VARCHAR(100) NOT NULL,
+        issue_date DATE NOT NULL,
+        expiry_date DATE NOT NULL,
+        file_name VARCHAR(255),
+        file_path VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
 
     // Indexes
@@ -155,6 +169,8 @@ const run = async () => {
       CREATE INDEX idx_maint_vehicle ON maintenance_logs(vehicle_id);
       CREATE INDEX idx_fuel_vehicle ON fuel_logs(vehicle_id);
       CREATE INDEX idx_expenses_vehicle ON expenses(vehicle_id);
+      CREATE INDEX idx_vehicle_documents_vehicle_id ON vehicle_documents(vehicle_id);
+      CREATE INDEX idx_vehicle_documents_expiry_date ON vehicle_documents(expiry_date);
     `);
 
     console.log('✅ Schema created.\n');
@@ -444,6 +460,17 @@ const run = async () => {
       client.query('SELECT COUNT(*) FROM fuel_logs'),
       client.query('SELECT COUNT(*) FROM expenses'),
     ]);
+
+    // Seed vehicle documents
+    console.log('📄 Seeding vehicle documents...');
+    await client.query(`
+      INSERT INTO vehicle_documents (vehicle_id, document_type, document_number, issue_date, expiry_date, file_name, file_path) VALUES
+      (1, 'RC Book', 'REG-GJ-1234', '2020-05-15', '2030-05-15', 'rc_book_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (1, 'PUC', 'PUC-GJ-1234', '2026-01-28', '2026-07-28', 'puc_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (1, 'Insurance Policy', 'INS-GJ-1234', '2025-06-01', '2026-06-01', 'insurance_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (2, 'Permits', 'PER-GJ-5678', '2023-10-10', '2028-10-10', 'permit_truck.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (2, 'Fitness Certificate', 'FIT-GJ-5678', '2024-01-01', '2029-01-01', 'fitness_truck.pdf', '/uploads/vehicle_documents/mock_doc.pdf');
+    `);
 
     console.log('📊 Database Summary:');
     console.log(`   👤 Users:         ${uCount.rows[0].count}`);

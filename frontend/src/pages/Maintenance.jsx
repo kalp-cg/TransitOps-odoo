@@ -71,6 +71,9 @@ const Maintenance = ({ userRole }) => {
     { key: 'end_date', label: 'End Date' },
     { key: 'status', label: 'Status' },
   ];
+  const openCount = records.filter(r => r.status === 'ACTIVE').length;
+  const closedCount = records.filter(r => r.status === 'COMPLETED').length;
+
   const { exportCsv, exportPdf } = useExport({
     title: 'Maintenance Work Orders',
     columns: MAINT_COLUMNS,
@@ -170,9 +173,6 @@ const Maintenance = ({ userRole }) => {
       setFormLoading(false);
     }
   };
-
-  const openCount = records.filter(r => r.status === 'ACTIVE').length;
-  const closedCount = records.filter(r => r.status === 'COMPLETED').length;
 
   return (
     <div>

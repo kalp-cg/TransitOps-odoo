@@ -41,7 +41,7 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-const Users = () => {
+const Users = ({ userRole }) => {
   const [users, setUsers] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,13 +156,19 @@ const Users = () => {
     setShowModal(true);
   };
 
-  const roleCounts = ROLES.reduce((acc, r) => ({ ...acc, [r]: users.filter(u => u.role === r).length }), {});
+  // Fleet Managers cannot see ADMIN users - filter them out in the UI too
+  const visibleRoles = (userRole === 'FLEET_MANAGER')
+    ? ROLES.filter(r => r !== 'ADMIN')
+    : ROLES;
+
+  const roleCounts = visibleRoles.reduce((acc, r) => ({ ...acc, [r]: users.filter(u => u.role === r).length }), {});
+
 
   return (
     <div>
       {/* Role Summary Strip */}
-      <div className="grid grid-cols-5" style={{ marginBottom: '16px' }}>
-        {ROLES.map(role => (
+      <div className={"grid grid-cols-" + visibleRoles.length} style={{ marginBottom: '16px' }}>
+        {visibleRoles.map(role => (
           <div key={role} className="card" style={{ padding: '12px 14px', borderLeft: `3px solid ${ROLE_COLORS[role]}` }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
               {role.replace(/_/g, ' ')}
@@ -187,7 +193,7 @@ const Users = () => {
         </div>
         <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ width: '180px' }}>
           <option value="">All Roles</option>
-          {ROLES.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+          {visibleRoles.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
         </select>
         <div style={{ flex: 1 }} />
         <button className="btn btn-secondary" onClick={() => setShowExportModal(true)}>
@@ -305,7 +311,7 @@ const Users = () => {
               <div>
                 <label>Role *</label>
                 <select value={form.role} onChange={e => set('role', e.target.value)}>
-                  {ROLES.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+                  {visibleRoles.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
             </div>

@@ -113,4 +113,28 @@ export const api = {
     fetch(`${API_BASE}/users/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(data) }).then(handleResponse),
   deleteUser: (id) =>
     fetch(`${API_BASE}/users/${id}`, { method: 'DELETE', headers: headers() }).then(handleResponse),
+
+  // Vehicle Documents
+  getVehicleDocuments: (vehicleId) =>
+    fetch(`${API_BASE}/vehicles/${vehicleId}/documents`, { headers: headers() }).then(handleResponse),
+  addVehicleDocument: (vehicleId, formData) =>
+    fetch(`${API_BASE}/vehicles/${vehicleId}/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` }, // no Content-Type – browser sets multipart boundary
+      body: formData
+    }).then(handleResponse),
+  updateVehicleDocument: (vehicleId, docId, formData) =>
+    fetch(`${API_BASE}/vehicles/${vehicleId}/documents/${docId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: formData
+    }).then(handleResponse),
+  deleteVehicleDocument: (vehicleId, docId) =>
+    fetch(`${API_BASE}/vehicles/${vehicleId}/documents/${docId}`, {
+      method: 'DELETE', headers: headers()
+    }).then(handleResponse),
+  getVehicleDocumentAlerts: () =>
+    fetch(`${API_BASE}/vehicles/documents/alerts`, { headers: headers() }).then(handleResponse),
+  getVehicleDocumentDownloadUrl: (vehicleId, docId) =>
+    `${API_BASE}/vehicles/${vehicleId}/documents/${docId}/download`,
 };

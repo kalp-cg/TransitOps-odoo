@@ -8,6 +8,7 @@ const seedDatabase = async () => {
     await client.query('BEGIN');
 
     // 1. Drop existing tables in correct order of dependency
+    await client.query('DROP TABLE IF EXISTS vehicle_documents CASCADE;');
     await client.query('DROP TABLE IF EXISTS expenses CASCADE;');
     await client.query('DROP TABLE IF EXISTS fuel_logs CASCADE;');
     await client.query('DROP TABLE IF EXISTS maintenance_logs CASCADE;');
@@ -147,6 +148,21 @@ const seedDatabase = async () => {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE vehicle_documents (
+        id SERIAL PRIMARY KEY,
+        vehicle_id INT REFERENCES vehicles(id) ON DELETE CASCADE,
+        document_type VARCHAR(100) NOT NULL, -- 'RC Book', 'PUC Certificate', 'Insurance Policy', 'Permits', 'Fitness Certificate', 'Other'
+        document_number VARCHAR(100) NOT NULL,
+        issue_date DATE NOT NULL,
+        expiry_date DATE NOT NULL,
+        file_name VARCHAR(255),
+        file_path VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // 4. Create Indexes
     await client.query(`
       CREATE INDEX idx_vehicles_registration_number ON vehicles(registration_number);
@@ -161,6 +177,8 @@ const seedDatabase = async () => {
       CREATE INDEX idx_maintenance_logs_status ON maintenance_logs(status);
       CREATE INDEX idx_fuel_logs_vehicle_id ON fuel_logs(vehicle_id);
       CREATE INDEX idx_expenses_vehicle_id ON expenses(vehicle_id);
+      CREATE INDEX idx_vehicle_documents_vehicle_id ON vehicle_documents(vehicle_id);
+      CREATE INDEX idx_vehicle_documents_expiry_date ON vehicle_documents(expiry_date);
     `);
 
     console.log('Tables, types, and indexes created successfully.');
@@ -199,6 +217,16 @@ const seedDatabase = async () => {
       ('David Analyst',  'analyst@transitops.com',    $1, 'FINANCIAL_ANALYST', 'ACTIVE', NULL),
       ('Admin User',     'admin@transitops.com',      $1, 'ADMIN',             'ACTIVE', NULL);
     `, [commonPasswordHash, alexDriver.id]);
+
+    // 8. Seed Vehicle Documents
+    await client.query(`
+      INSERT INTO vehicle_documents (vehicle_id, document_type, document_number, issue_date, expiry_date, file_name, file_path) VALUES
+      (1, 'RC Book', 'REG-GJ-1234', '2020-05-15', '2030-05-15', 'rc_book_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (1, 'PUC', 'PUC-GJ-1234', '2026-01-28', '2026-07-28', 'puc_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (1, 'Insurance Policy', 'INS-GJ-1234', '2025-06-01', '2026-06-01', 'insurance_van.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (2, 'Permits', 'PER-GJ-5678', '2023-10-10', '2028-10-10', 'permit_truck.pdf', '/uploads/vehicle_documents/mock_doc.pdf'),
+      (2, 'Fitness Certificate', 'FIT-GJ-5678', '2024-01-01', '2029-01-01', 'fitness_truck.pdf', '/uploads/vehicle_documents/mock_doc.pdf');
+    `);
 
     await client.query('COMMIT');
     console.log('Database seeded successfully.');

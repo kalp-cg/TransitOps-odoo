@@ -26,6 +26,11 @@ router.get('/', authenticateJWT, authorizeRoles('FLEET_MANAGER'), async (req, re
     idx++;
   }
 
+  // Fleet Managers cannot see ADMIN users — must apply before ORDER BY
+  if (req.user.role === 'FLEET_MANAGER') {
+    queryText += ` AND role <> 'ADMIN'`;
+  }
+
   const allowedSort = { id: 'id', name: 'name', email: 'email', role: 'role', created_at: 'created_at' };
   const sortCol = allowedSort[sort] || 'id';
   const sortOrder = order === 'ASC' ? 'ASC' : 'DESC';
@@ -46,6 +51,12 @@ router.post('/', authenticateJWT, authorizeRoles('FLEET_MANAGER'), async (req, r
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'Required fields: name, email, password, role.' });
   }
+
+  // Fleet Managers cannot create ADMIN users
+  if (req.user.role === 'FLEET_MANAGER' && role === 'ADMIN') {
+    return res.status(403).json({ error: 'Forbidden: Fleet Managers cannot create Admin users.' });
+  }
+
 
   try {
     // Check unique email
@@ -84,9 +95,19 @@ router.put('/:id', authenticateJWT, authorizeRoles('FLEET_MANAGER'), async (req,
   const { name, email, password, role, status, driver_id } = req.body;
 
   try {
-    const exists = await query('SELECT id FROM users WHERE id = $1', [userId]);
+    const exists = await query('SELECT id, role FROM users WHERE id = $1', [userId]);
     if (exists.rows.length === 0) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Fleet Managers cannot edit ADMIN users or promote anyone to ADMIN
+    if (req.user.role === 'FLEET_MANAGER') {
+      if (exists.rows[0].role === 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden: Fleet Managers cannot edit Admin users.' });
+      }
+      if (role === 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden: Fleet Managers cannot assign the Admin role.' });
+      }
     }
 
     if (email) {
@@ -144,9 +165,14 @@ router.delete('/:id', authenticateJWT, authorizeRoles('FLEET_MANAGER'), async (r
   const userId = parseInt(req.params.id);
 
   try {
-    const exists = await query('SELECT id FROM users WHERE id = $1', [userId]);
+    const exists = await query('SELECT id, role FROM users WHERE id = $1', [userId]);
     if (exists.rows.length === 0) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Fleet Managers cannot delete ADMIN users
+    if (req.user.role === 'FLEET_MANAGER' && exists.rows[0].role === 'ADMIN') {
+      return res.status(403).json({ error: 'Forbidden: Fleet Managers cannot delete Admin users.' });
     }
 
     // Prevent user from self-deleting
