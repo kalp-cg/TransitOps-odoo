@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, AlertCircle, CheckCircle, Zap } from 'lucide-react';
+import { Plus, X, AlertCircle, CheckCircle, Zap, Check, Play } from 'lucide-react';
 import { api } from '../api';
 
 const Modal = ({ title, onClose, children, wide = false }) => (
@@ -68,6 +68,65 @@ const TripDispatchWizard = ({ vehicles, drivers, onSuccess, onClose }) => {
     setForm(f => ({ ...f, vehicle_id: String(vehicle_id), driver_id: String(driver_id) }));
   };
 
+  const getSelectedMatchDetails = () => {
+    if (!recommendations) return null;
+    const vId = Number(form.vehicle_id);
+    const dId = Number(form.driver_id);
+
+    if (!vId || !dId) return null;
+
+    let vehicle = null;
+    let vReasons = [];
+    if (recommendations.recommendedVehicle?.vehicle?.id === vId) {
+      vehicle = recommendations.recommendedVehicle.vehicle;
+      vReasons = recommendations.recommendedVehicle.reasons;
+    } else {
+      const altV = recommendations.alternatives?.vehicles?.find(v => v.id === vId);
+      if (altV) {
+        vehicle = altV;
+        vReasons = [
+          `Capacity (${altV.maximum_load_capacity} KG) accommodates your cargo of ${form.cargo_weight} KG.`,
+          `Estimated efficiency of ${altV.efficiencyKmL} KM/L (Est. fuel: ${altV.estimatedFuelLiters} L).`
+        ];
+      }
+    }
+
+    let driver = null;
+    let dReasons = [];
+    if (recommendations.recommendedDriver?.driver?.id === dId) {
+      driver = recommendations.recommendedDriver.driver;
+      dReasons = recommendations.recommendedDriver.reasons;
+    } else {
+      const altD = recommendations.alternatives?.drivers?.find(d => d.id === dId);
+      if (altD) {
+        driver = altD;
+        dReasons = [
+          `Driver is AVAILABLE and license expires in ${altD.licenseValidityDays} days.`,
+          `Safety score is ${altD.safety_score}/100.`
+        ];
+      }
+    }
+
+    if (!vehicle || !driver) return null;
+
+    const isBest = (recommendations.recommendedVehicle?.vehicle?.id === vId &&
+                    recommendations.recommendedDriver?.driver?.id === dId);
+
+    const bestFuelCost = recommendations.recommendedVehicle?.vehicle?.estimatedFuelCost || vehicle.estimatedFuelCost;
+    const efficiencyRatio = vehicle.estimatedFuelCost > 0 ? (bestFuelCost / vehicle.estimatedFuelCost) : 1.0;
+    const vehicleScore = efficiencyRatio * 100;
+    const matchScore = Math.round((vehicleScore * 0.4) + (driver.safety_score * 0.6));
+
+    return {
+      vehicle,
+      driver,
+      vReasons,
+      dReasons,
+      isBest,
+      matchScore
+    };
+  };
+
   const handleCreate = async () => {
     setValidationError('');
     setCreateLoading(true);
@@ -120,7 +179,7 @@ const TripDispatchWizard = ({ vehicles, drivers, onSuccess, onClose }) => {
                 color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '12px', fontWeight: '700'
               }}>
-                {done ? '✓' : stepNum}
+                {done ? <Check size={14} /> : stepNum}
               </div>
               <div style={{ fontSize: '11px', color: active ? 'var(--text-main)' : 'var(--text-muted)', textAlign: 'center' }}>
                 {label}
@@ -189,51 +248,121 @@ const TripDispatchWizard = ({ vehicles, drivers, onSuccess, onClose }) => {
             {recLoading && <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Analyzing fleet...</div>}
             {recError && <div style={{ color: '#F56565', fontSize: '13px' }}>{recError}</div>}
 
-            {recommendations && !recLoading && (
-              <div>
-                {recommendations.recommendedVehicle && recommendations.recommendedDriver ? (
-                  <div
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '10px 12px', marginBottom: '6px',
-                      backgroundColor: 'var(--bg-dark)',
-                      border: '1px solid rgba(197,139,50,0.4)',
-                      borderRadius: '2px', cursor: 'pointer'
-                    }}
-                    onClick={() => applyRecommendation(
-                      recommendations.recommendedVehicle.vehicle.id,
-                      recommendations.recommendedDriver.driver.id
-                    )}
-                  >
-                    <div style={{ fontSize: '12px' }}>
-                      <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>
-                        {recommendations.recommendedVehicle.vehicle.registration_number}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>+</span>
-                      <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>
-                        {recommendations.recommendedDriver.driver.name}
-                      </span>
-                      <span style={{
-                        marginLeft: '8px', fontSize: '10px',
-                        backgroundColor: 'rgba(197,139,50,0.15)', color: 'var(--accent-color)',
-                        padding: '2px 6px', borderRadius: '2px'
-                      }}>BEST MATCH</span>
+            {recommendations && !recLoading && (() => {
+              const match = getSelectedMatchDetails();
+              if (match) {
+                return (
+                  <div>
+                    <div
+                      style={{
+                        padding: '10px 12px', marginBottom: '6px',
+                        backgroundColor: 'var(--bg-dark)',
+                        border: match.isBest ? '1px solid rgba(197,139,50,0.4)' : '1px solid var(--border-color)',
+                        borderRadius: '2px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                            {match.vehicle.registration_number}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>+</span>
+                          <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                            {match.driver.name}
+                          </span>
+                          <span style={{
+                            marginLeft: '8px', fontSize: '10px',
+                            backgroundColor: match.isBest ? 'rgba(197,139,50,0.15)' : 'rgba(113,75,103,0.15)',
+                            color: match.isBest ? 'var(--accent-color)' : 'var(--text-main)',
+                            padding: '2px 6px', borderRadius: '2px', fontWeight: '600'
+                          }}>
+                            {match.isBest ? 'BEST MATCH (100%)' : `CUSTOM MATCH (${match.matchScore}%)`}
+                          </span>
+                        </div>
+                        {!match.isBest && (
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '10px' }}
+                            onClick={() => applyRecommendation(
+                              recommendations.recommendedVehicle?.vehicle?.id,
+                              recommendations.recommendedDriver?.driver?.id
+                            )}
+                          >
+                            Reset to Best Match
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Show calculations/reasons */}
+                      <div style={{ marginTop: '8px', paddingLeft: '8px', borderLeft: '2px solid var(--border-color)' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-main)', marginBottom: '2px' }}>Vehicle Metrics:</div>
+                        {match.vReasons.map((r, idx) => (
+                          <div key={`v-${idx}`} style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px' }}>• {r}</div>
+                        ))}
+                        <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-main)', marginTop: '6px', marginBottom: '2px' }}>Driver Metrics:</div>
+                        {match.dReasons.map((r, idx) => (
+                          <div key={`d-${idx}`} style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px' }}>• {r}</div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ color: '#F56565', fontSize: '13px' }}>
-                    No valid vehicle/driver combinations available for this weight.
-                  </div>
-                )}
 
-                {/* Alternatives */}
-                {recommendations.alternatives?.vehicles?.length > 0 && (
-                  <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Alternative Available Vehicles: {recommendations.alternatives.vehicles.map(v => v.registration_number).join(', ')}
+                    {/* Alternatives */}
+                    {recommendations.alternatives?.vehicles?.length > 0 && (
+                      <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Alternative Available Vehicles: {recommendations.alternatives.vehicles.map(v => v.registration_number).join(', ')}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                );
+              }
+
+              return (
+                <div>
+                  {recommendations.recommendedVehicle && recommendations.recommendedDriver ? (
+                    <div
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 12px', marginBottom: '6px',
+                        backgroundColor: 'var(--bg-dark)',
+                        border: '1px solid rgba(197,139,50,0.4)',
+                        borderRadius: '2px', cursor: 'pointer'
+                      }}
+                      onClick={() => applyRecommendation(
+                        recommendations.recommendedVehicle.vehicle.id,
+                        recommendations.recommendedDriver.driver.id
+                      )}
+                    >
+                      <div style={{ fontSize: '12px' }}>
+                        <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>
+                          {recommendations.recommendedVehicle.vehicle.registration_number}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>+</span>
+                        <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>
+                          {recommendations.recommendedDriver.driver.name}
+                        </span>
+                        <span style={{
+                          marginLeft: '8px', fontSize: '10px',
+                          backgroundColor: 'rgba(197,139,50,0.15)', color: 'var(--accent-color)',
+                          padding: '2px 6px', borderRadius: '2px'
+                        }}>BEST MATCH</span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--accent-color)', fontWeight: '500' }}>Click to Apply</span>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#F56565', fontSize: '13px' }}>
+                      No valid vehicle/driver combinations available for this weight.
+                    </div>
+                  )}
+
+                  {/* Alternatives */}
+                  {recommendations.alternatives?.vehicles?.length > 0 && (
+                    <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Alternative Available Vehicles: {recommendations.alternatives.vehicles.map(v => v.registration_number).join(', ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Manual Selection */}
@@ -242,20 +371,47 @@ const TripDispatchWizard = ({ vehicles, drivers, onSuccess, onClose }) => {
               <label>Vehicle *</label>
               <select value={form.vehicle_id} onChange={e => set('vehicle_id', e.target.value)} required>
                 <option value="">Select Vehicle</option>
-                {vehicles.filter(v => v.status === 'AVAILABLE').map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.registration_number} – {v.type} ({Number(v.maximum_load_capacity).toLocaleString()} kg)
-                  </option>
-                ))}
+                {vehicles.filter(v => v.status === 'AVAILABLE').map(v => {
+                  const isTooHeavy = Number(form.cargo_weight) > Number(v.maximum_load_capacity);
+                  return (
+                    <option key={v.id} value={v.id} disabled={isTooHeavy}>
+                      {v.registration_number} – {v.type} ({Number(v.maximum_load_capacity).toLocaleString()} kg) {isTooHeavy ? ' (Insufficient Capacity)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>
               <label>Driver *</label>
               <select value={form.driver_id} onChange={e => set('driver_id', e.target.value)} required>
                 <option value="">Select Driver</option>
-                {drivers.filter(d => d.status === 'AVAILABLE').map(d => (
-                  <option key={d.id} value={d.id}>{d.name} – Safety Score: {d.safety_score}</option>
-                ))}
+                {drivers.filter(d => d.status === 'AVAILABLE').map(d => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const expiryStr = new Date(d.license_expiry_date).toISOString().split('T')[0];
+                  const isExpired = expiryStr < todayStr;
+
+                  // Check license category suitability if a vehicle is selected
+                  let licenseUnsuitable = false;
+                  if (form.vehicle_id) {
+                    const selVehicle = vehicles.find(v => String(v.id) === String(form.vehicle_id));
+                    if (selVehicle && Number(selVehicle.maximum_load_capacity) > 3500) {
+                      if (d.license_category !== 'Heavy Commercial') {
+                        licenseUnsuitable = true;
+                      }
+                    }
+                  }
+
+                  const isDisabled = isExpired || licenseUnsuitable;
+                  let suffix = '';
+                  if (isExpired) suffix = ' (Expired License)';
+                  else if (licenseUnsuitable) suffix = ' (Requires Heavy License)';
+
+                  return (
+                    <option key={d.id} value={d.id} disabled={isDisabled}>
+                      {d.name} – Safety Score: {d.safety_score} {suffix}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -328,7 +484,11 @@ const TripDispatchWizard = ({ vehicles, drivers, onSuccess, onClose }) => {
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between' }}>
             <button className="btn btn-secondary" onClick={onClose}>Save Draft & Close</button>
             <button className="btn btn-accent" onClick={handleDispatch} disabled={dispatchLoading}>
-              {dispatchLoading ? 'Dispatching…' : '🚀 Dispatch Trip'}
+              {dispatchLoading ? 'Dispatching…' : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Play size={12} fill="currentColor" /> Dispatch Trip
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -380,7 +540,11 @@ const CompleteTripModal = ({ trip, onSuccess, onClose }) => {
       <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
         <button type="submit" className="btn btn-accent" disabled={loading}>
-          {loading ? 'Completing…' : '✓ Complete Trip'}
+          {loading ? 'Completing…' : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Check size={14} /> Complete Trip
+            </span>
+          )}
         </button>
       </div>
     </form>
@@ -397,7 +561,7 @@ const Trips = ({ userRole }) => {
   const [showWizard, setShowWizard] = useState(false);
   const [completingTrip, setCompletingTrip] = useState(null);
 
-  const canDispatch = ['DISPATCHER', 'FLEET_MANAGER'].includes(userRole);
+  const canDispatch = ['DISPATCHER', 'FLEET_MANAGER', 'ADMIN'].includes(userRole);
 
   const load = async () => {
     setLoading(true);

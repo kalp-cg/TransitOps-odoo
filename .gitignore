@@ -5,6 +5,7 @@ node_modules/
 # Local env files
 .env
 *.env
+/Dev
 
 # Builds
 dist/
